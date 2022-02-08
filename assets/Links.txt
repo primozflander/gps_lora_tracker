@@ -1,0 +1,2 @@
+https://community.mydevices.com/t/cayenne-lpp-2-0/7510
+https://hackaday.io/project/171304-esp32-lora-gps-bike-thing
