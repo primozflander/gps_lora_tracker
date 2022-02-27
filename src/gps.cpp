@@ -1,4 +1,4 @@
-#include "gps.h"
+#include "Gps.h"
 
 // HardwareSerial GPSSerial(1);
 
@@ -25,6 +25,24 @@ void GPS::encode()
         }
     }
 }
+
+
+void GPS::encodeDebug()
+{       
+    int data;
+    int previousMillis = millis();
+
+    while((previousMillis + 1000) > millis())
+    {
+        while (Serial1.available() )
+        {
+            // char data = Serial1.read();
+            // Serial.print(data);
+            tGps.encode(*gpsStream++);
+        }
+    }
+}
+
 
 void GPS::getLatLon(double* lat, double* lon, double *alt, double *kmph, int *sats)
 {

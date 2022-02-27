@@ -150,14 +150,17 @@ bool boardInit(InitType initType)
             } 
             else 
             {
+                axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON); 
+                axp.setPowerOutPut(AXP192_DCDC2, AXP202_OFF);
+                axp.setPowerOutPut(AXP192_DCDC3, AXP202_ON);
                 axp.setPowerOutPut(AXP192_LDO2, AXP202_ON);
                 axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);
-                axp.setPowerOutPut(AXP192_DCDC2, AXP202_ON);
                 axp.setPowerOutPut(AXP192_EXTEN, AXP202_ON);
-                axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON); 
+                
 
                 // Explicitly set voltages because AXP192 power-on values may be lower.
-                axp.setDCDC1Voltage(3300);  // 3.3V pin
+                axp.setDCDC1Voltage(2800);  // SSD1306, IMU
+                axp.setDCDC3Voltage(3300);  // ESP32
                 axp.setLDO2Voltage (3300);  // LoRa
                 axp.setLDO3Voltage (3300);  // GPS                
             }
