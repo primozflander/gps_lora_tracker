@@ -980,11 +980,6 @@ void processWork(ostime_t doWorkJobTimeStamp)
                 // we have all the data that we need, let's construct LPP packet for Cayenne
                 lpp.reset();
                 lpp.addGPS(1, lat, lon, alt);
-                // lpp.addTemperature(2, tmp);
-                // lpp.addRelativeHumidity(3, hum);
-                // lpp.addBarometricPressure(4, pressure);
-                // lpp.addAnalogInput(5, vBat);
-                // optional: send current speed, satellite count, altitude from barometric sensor and battery voltage
                 lpp.addAnalogInput(2, kmph);
                 lpp.addAnalogInput(3, sats);
                 lpp.addAnalogInput(4, axp.getBattVoltage() / 1000);
@@ -1014,17 +1009,8 @@ void processWork(ostime_t doWorkJobTimeStamp)
                 // try again in a few 'GPS_FIX_RETRY_DELAY' seconds...
                 os_setTimedCallback(&doWorkJob, os_getTime() + sec2osticks(GPS_FIX_RETRY_DELAY), doWorkCallback);
                 // os_setTimedCallback(&doWorkJob, startAt, doWorkCallback);
-
                 // timestamp + sec2osticks((int64_t)doWorkIntervalSeconds);
             }
-
-            // // Prepare uplink payload.
-            // uint8_t fPort = 10;
-            // payloadBuffer[0] = counterValue >> 8;
-            // payloadBuffer[1] = counterValue & 0xFF;
-            // uint8_t payloadLength = 2;
-
-            // scheduleUplink(fPort, payloadBuffer, payloadLength);
         }
     }
 }
@@ -1097,9 +1083,8 @@ void setup()
     //  ▀▀▀ ▀▀▀ ▀▀▀ ▀ ▀   ▀▀▀ ▀▀▀ ▀▀  ▀▀▀   ▀▀  ▀▀▀ ▀▀▀ ▀▀▀ ▀ ▀
 
     // Place code for initializing sensors etc. here.
-
-    resetCounter();
     ++bootCount;
+    resetCounter();
     printWakeupReason();
     mpu.begin();
     // WiFi.mode(WIFI_OFF);
