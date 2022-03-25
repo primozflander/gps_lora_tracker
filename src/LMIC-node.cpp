@@ -18,12 +18,13 @@
 //  █ █ ▀▀█ █▀▀ █▀▄   █   █ █ █ █ █▀▀   █▀▄ █▀▀ █ █  █  █ █
 //  ▀▀▀ ▀▀▀ ▀▀▀ ▀ ▀   ▀▀▀ ▀▀▀ ▀▀  ▀▀▀   ▀▀  ▀▀▀ ▀▀▀ ▀▀▀ ▀ ▀
 
-const uint8_t payloadBufferLength = 32; // Adjust to fit max payload length
+// const uint8_t payloadBufferLength = 32; // Adjust to fit max payload length
 
 CayenneLPP lpp(51); // here we will construct Cayenne Low Power Payload (LPP) - see https://community.mydevices.com/t/cayenne-lpp-2-0/7510
 GPS gps;            // class that is encapsulating additional GPS functionality
 MPU6050 mpu(Wire);
 RTC_DATA_ATTR int bootCount = 0;
+int retryCount = 0;
 RTC_DATA_ATTR lmic_t RTC_LMIC;
 double lat, lon, alt, kmph; // GPS data are saved here: Latitude, Longitude, Altitude, Speed in km/h
 // float tmp, hum, pressure, alt_barometric; // BME280 data are saved here: Temperature, Humidity, Pressure, Altitude calculated from atmospheric pressure
@@ -32,7 +33,8 @@ char s[32]; // used to sprintf for Serial output
 // bool status; // status after reading from BME280
 // float vBat; // battery voltage
 // long nextPacketTime;
-bool goToDeepSleep = 0;
+bool goToDeepSleep = false;
+bool goToDeepSleepWithIMUWakeup = false;
 
 const unsigned int GPS_FIX_RETRY_DELAY = 10; // wait this many seconds when no GPS fix is received to retry
 // const unsigned int SHORT_TX_INTERVAL = 20; // when driving, send packets every SHORT_TX_INTERVAL seconds
@@ -42,7 +44,7 @@ const unsigned int GPS_FIX_RETRY_DELAY = 10; // wait this many seconds when no G
 //  █ █ ▀▀█ █▀▀ █▀▄   █   █ █ █ █ █▀▀   █▀▀ █ █ █ █
 //  ▀▀▀ ▀▀▀ ▀▀▀ ▀ ▀   ▀▀▀ ▀▀▀ ▀▀  ▀▀▀   ▀▀▀ ▀ ▀ ▀▀
 
-uint8_t payloadBuffer[payloadBufferLength];
+// uint8_t payloadBuffer[payloadBufferLength];
 static osjob_t doWorkJob;
 uint32_t doWorkIntervalSeconds = DO_WORK_INTERVAL_SECONDS; // Change value in platformio.ini
 
@@ -290,9 +292,9 @@ void printWakeupReason()
     }
 }
 
-void enterSleepMode()
+void enterSleepMode(int seconds = DO_WORK_INTERVAL_SECONDS)
 {
-    esp_sleep_enable_timer_wakeup(DO_WORK_INTERVAL_SECONDS * uS_TO_S_FACTOR);
+    esp_sleep_enable_timer_wakeup(seconds * uS_TO_S_FACTOR);
     esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
     display.setPowerSave(1);
     axp.setPowerOutPut(AXP192_LDO2, AXP202_OFF); // Lora off
@@ -301,9 +303,27 @@ void enterSleepMode()
     Serial.println("Going to sleep");
     Serial.flush();
     // SaveLMICToRTC(DO_WORK_INTERVAL_SECONDS);
-    // delay(10);
+    delay(10);
     esp_deep_sleep_start();
 }
+
+
+void enterSleepModeWithIMUWakeup()
+{
+    mpu.setAccWakeUp();
+    esp_sleep_enable_ext0_wakeup(GPIO_NUM_35, 1);
+    esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
+    display.setPowerSave(1);
+    axp.setPowerOutPut(AXP192_LDO2, AXP202_OFF); // Lora off
+    axp.setPowerOutPut(AXP192_LDO3, AXP202_OFF); // GPS off
+    PrintRuntime();
+    Serial.println("Going to sleep");
+    Serial.flush();
+    // SaveLMICToRTC(DO_WORK_INTERVAL_SECONDS);
+    delay(10);
+    esp_deep_sleep_start();
+}
+
 
 int16_t getSnrTenfold()
 {
@@ -790,7 +810,7 @@ void onEvent(ev_t ev)
         printEvent(timestamp, ev);
         printFrameCounters();
 
-        // Check if downlink was received
+        Check if downlink was received
         if (LMIC.dataLen != 0 || LMIC.dataBeg != 0)
         {
             uint8_t fPort = 0;
@@ -897,20 +917,20 @@ lmic_tx_error_t scheduleUplink(uint8_t fPort, uint8_t *data, uint8_t dataLength,
 //  █ █ ▀▀█ █▀▀ █▀▄   █   █ █ █ █ █▀▀   █▀▄ █▀▀ █ █  █  █ █
 //  ▀▀▀ ▀▀▀ ▀▀▀ ▀ ▀   ▀▀▀ ▀▀▀ ▀▀  ▀▀▀   ▀▀  ▀▀▀ ▀▀▀ ▀▀▀ ▀ ▀
 
-static volatile uint16_t counter_ = 0;
+// static volatile uint16_t counter_ = 0;
 
-uint16_t getCounterValue()
-{
-    // Increments counter and returns the new value.
-    delay(50); // Fake this takes some time
-    return ++counter_;
-}
+// uint16_t getCounterValue()
+// {
+//     // Increments counter and returns the new value.
+//     // delay(50); // Fake this takes some time
+//     return ++counter_;
+// }
 
-void resetCounter()
-{
-    // Reset counter to 0
-    counter_ = 0;
-}
+// void resetCounter()
+// {
+//     // Reset counter to 0
+//     counter_ = 0;
+// }
 
 void processWork(ostime_t doWorkJobTimeStamp)
 {
@@ -931,7 +951,7 @@ void processWork(ostime_t doWorkJobTimeStamp)
         // The counter is increased automatically by getCounterValue()
         // and can be reset with a 'reset counter' command downlink message.
 
-        uint16_t counterValue = getCounterValue();
+        // uint16_t counterValue = getCounterValue();
         ostime_t timestamp = os_getTime();
 
 #ifdef USE_DISPLAY
@@ -943,14 +963,14 @@ void processWork(ostime_t doWorkJobTimeStamp)
         display.print("I:");
         display.print(doWorkIntervalSeconds);
         display.print("s");
-        display.print(" Ctr:");
-        display.print(counterValue);
+        // display.print(" Ctr:");
+        // display.print(counterValue);
 #endif
 #ifdef USE_SERIAL
         printEvent(timestamp, "Input data collected", PrintTarget::Serial);
         printSpaces(serial, MESSAGE_INDENT);
-        serial.print(F("COUNTER value: "));
-        serial.println(counterValue);
+        // serial.print(F("COUNTER value: "));
+        // serial.println(counterValue);
 #endif
 
         // For simplicity LMIC-node will try to send an uplink
@@ -1001,13 +1021,25 @@ void processWork(ostime_t doWorkJobTimeStamp)
                 // Serial.println();
 
                 // digitalWrite(BUILTIN_LED, HIGH);
-                Serial.println("Success");
+                // Serial.println("Success");
             }
             else
             {
-                Serial.println("Failed");
-                // try again in a few 'GPS_FIX_RETRY_DELAY' seconds...
+                mpu.update();
+                Serial.println("Failed " + String(retryCount) + " " + String(mpu.getAccAngleX()));
                 os_setTimedCallback(&doWorkJob, os_getTime() + sec2osticks(GPS_FIX_RETRY_DELAY), doWorkCallback);
+                // try again in a few 'GPS_FIX_RETRY_DELAY' seconds...
+                // if (retryCount > 3)
+                // {
+                //     goToDeepSleepWithIMUWakeup = true;
+                //     // retryCount = 0;
+                // }
+                // else
+                // {
+                //     os_setTimedCallback(&doWorkJob, os_getTime() + sec2osticks(GPS_FIX_RETRY_DELAY), doWorkCallback);
+                //     retryCount++;
+                // }
+                
                 // os_setTimedCallback(&doWorkJob, startAt, doWorkCallback);
                 // timestamp + sec2osticks((int64_t)doWorkIntervalSeconds);
             }
@@ -1015,29 +1047,29 @@ void processWork(ostime_t doWorkJobTimeStamp)
     }
 }
 
-void processDownlink(ostime_t txCompleteTimestamp, uint8_t fPort, uint8_t *data, uint8_t dataLength)
-{
-    // This function is called from the onEvent() event handler
-    // on EV_TXCOMPLETE when a downlink message was received.
+// void processDownlink(ostime_t txCompleteTimestamp, uint8_t fPort, uint8_t *data, uint8_t dataLength)
+// {
+//     // This function is called from the onEvent() event handler
+//     // on EV_TXCOMPLETE when a downlink message was received.
 
-    // Implements a 'reset counter' command that can be sent via a downlink message.
-    // To send the reset counter command to the node, send a downlink message
-    // (e.g. from the TTN Console) with single byte value resetCmd on port cmdPort.
+//     // Implements a 'reset counter' command that can be sent via a downlink message.
+//     // To send the reset counter command to the node, send a downlink message
+//     // (e.g. from the TTN Console) with single byte value resetCmd on port cmdPort.
 
-    const uint8_t cmdPort = 100;
-    const uint8_t resetCmd = 0xC0;
+//     const uint8_t cmdPort = 100;
+//     const uint8_t resetCmd = 0xC0;
 
-    if (fPort == cmdPort && dataLength == 1 && data[0] == resetCmd)
-    {
-#ifdef USE_SERIAL
-        printSpaces(serial, MESSAGE_INDENT);
-        serial.println(F("Reset cmd received"));
-#endif
-        ostime_t timestamp = os_getTime();
-        resetCounter();
-        printEvent(timestamp, "Counter reset", PrintTarget::All, false);
-    }
-}
+//     if (fPort == cmdPort && dataLength == 1 && data[0] == resetCmd)
+//     {
+// #ifdef USE_SERIAL
+//         printSpaces(serial, MESSAGE_INDENT);
+//         serial.println(F("Reset cmd received"));
+// #endif
+//         ostime_t timestamp = os_getTime();
+//         resetCounter();
+//         printEvent(timestamp, "Counter reset", PrintTarget::All, false);
+//     }
+// }
 
 //  █ █ █▀▀ █▀▀ █▀▄   █▀▀ █▀█ █▀▄ █▀▀   █▀▀ █▀█ █▀▄
 //  █ █ ▀▀█ █▀▀ █▀▄   █   █ █ █ █ █▀▀   █▀▀ █ █ █ █
@@ -1084,9 +1116,10 @@ void setup()
 
     // Place code for initializing sensors etc. here.
     ++bootCount;
-    resetCounter();
+    // resetCounter();
     printWakeupReason();
     mpu.begin();
+    // Wire.begin(21, 22);
     // WiFi.mode(WIFI_OFF);
     // btStop();
     gps.init();
@@ -1141,6 +1174,13 @@ void loop()
         LoraWANPrintLMICOpmode();
         SaveLMICToRTC(DO_WORK_INTERVAL_SECONDS);
         enterSleepMode();
+    }
+    else if(!timeCriticalJobs && goToDeepSleepWithIMUWakeup == true && !(LMIC.opmode & OP_TXRXPEND))
+    {
+        Serial.print(F("Can go sleep(IMU) "));
+        LoraWANPrintLMICOpmode();
+        SaveLMICToRTC(DO_WORK_INTERVAL_SECONDS);
+        enterSleepModeWithIMUWakeup();
     }
     else if (lastPrintTime + 2000 < millis())
     {
